@@ -7,6 +7,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import org.apache.log4j.spi.LoggingEvent;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -20,6 +21,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -114,7 +117,9 @@ public class SentryAppenderTest {
         Logger.getLogger(loggerName).error(message);
 
         // Verify
-        verifyMessage(loggerName, logLevel, projectId, message);
+        JSONObject json = verifyMessage(loggerName, logLevel, projectId, message);
+        assertNotNull(json.get("tags"));
+        System.out.println(json.toJSONString());
     }
 
     @Test
@@ -227,6 +232,21 @@ public class SentryAppenderTest {
             json.put("Test", value); // value should be 1
         }
 
+    }
+
+    public static class MockTagGenerator implements TagGenerator{
+
+        private static Map<String, String> testTagMap = new HashMap<String, String>(){
+            {
+                put("app_classifier", "CRITICAL");
+                put("java_version", System.getProperty("java.version"));
+            }
+        };
+
+        @Override
+        public Map<String, ?> tag(LoggingEvent loggingEvent) {
+            return testTagMap;
+        }
     }
 
 }

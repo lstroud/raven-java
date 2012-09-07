@@ -8,9 +8,7 @@ import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.spi.LoggingEvent;
 import org.apache.log4j.spi.ThrowableInformation;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * Log4J appender that will send messages to Sentry.
@@ -22,6 +20,9 @@ public class SentryAppender extends AppenderSkeleton {
     protected String sentryDsn;
     protected Client client;
     protected boolean messageCompressionEnabled = true;
+    protected String tagGeneratorClass;
+    protected TagGenerator tagGenerator;    //instantiated based on configured class
+
     private List<JSONProcessor> jsonProcessors = Collections.emptyList();
 
     public SentryAppender() {
@@ -51,6 +52,14 @@ public class SentryAppender extends AppenderSkeleton {
 
     public void setMessageCompressionEnabled(boolean messageCompressionEnabled) {
         this.messageCompressionEnabled = messageCompressionEnabled;
+    }
+
+    public String getTagGeneratorClass() {
+        return tagGeneratorClass;
+    }
+
+    public void setTagGeneratorClass(String tagGeneratorClass) {
+        this.tagGeneratorClass = tagGeneratorClass;
     }
 
     /**
@@ -90,6 +99,14 @@ public class SentryAppender extends AppenderSkeleton {
         client = (sentryDsn == null ? new Client() : new Client(SentryDsn.buildOptional(sentryDsn)));
         client.setJSONProcessors(jsonProcessors);
         client.setMessageCompressionEnabled(messageCompressionEnabled);
+
+        if(tagGeneratorClass != null){
+            try {
+                tagGenerator = (TagGenerator) Class.forName(tagGeneratorClass).newInstance();
+            } catch (Throwable e) {
+                throw new RuntimeException("Unable to instantiate the configured tag generator", e);
+            }
+        }
     }
 
     @Override
@@ -99,11 +116,19 @@ public class SentryAppender extends AppenderSkeleton {
             // get timestamp and timestamp in correct string format.
             long timestamp = event.getTimeStamp();
 
+
             // get the log and info about the log.
             String message = event.getRenderedMessage();
             String logger = event.getLogger().getName();
             int level = (event.getLevel().toInt() / 1000);  //Need to divide by 1000 to keep consistent with sentry
             String culprit = event.getLoggerName();
+
+            //allow the tag generator to use the system context and log event to
+            //tag the event appropriately in sentry
+            Map<String, ?> tags = null;
+            if(tagGenerator != null){
+                tags = tagGenerator.tag(event);
+            }
 
             // is it an exception?
             ThrowableInformation info = event.getThrowableInformation();
@@ -116,9 +141,9 @@ public class SentryAppender extends AppenderSkeleton {
 
             // send the message to the sentry server
             if (info == null) {
-                client.captureMessage(message, timestamp, logger, level, culprit);
+                client.captureMessage(message, timestamp, logger, level, culprit, tags);
             } else {
-                client.captureException(message, timestamp, logger, level, culprit, info.getThrowable());
+                client.captureException(message, timestamp, logger, level, culprit, info.getThrowable(), tags);
             }
         } finally {
             mdc.removeThreadLoggingEvent();
