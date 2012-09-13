@@ -18,6 +18,7 @@ public class AsyncSentryAppender extends AsyncAppender {
     private String jsonProcessors;
     private SentryAppender appender;
     private boolean messageCompressionEnabled = true;
+    protected String tagGeneratorClass;
 
     public AsyncSentryAppender() {
         SentryAppender.initMDC();
@@ -49,6 +50,14 @@ public class AsyncSentryAppender extends AsyncAppender {
         this.jsonProcessors = jsonProcessors;
     }
 
+    public String getTagGeneratorClass() {
+        return tagGeneratorClass;
+    }
+
+    public void setTagGeneratorClass(String tagGeneratorClass) {
+        this.tagGeneratorClass = tagGeneratorClass;
+    }
+
     @Override
     public void append(LoggingEvent event) {
         appender.notifyProcessors();
@@ -66,6 +75,7 @@ public class AsyncSentryAppender extends AsyncAppender {
         appender.setLayout(this.getLayout());
         appender.setName(this.getName());
         appender.setThreshold(this.getThreshold());
+        appender.setTagGeneratorClass(this.getTagGeneratorClass());
         appender.activateOptions();
         this.appender = appender;
         addAppender(appender);
